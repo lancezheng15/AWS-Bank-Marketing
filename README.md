@@ -46,8 +46,8 @@ cd AWS-Bank-Marketing
 # Create .env file with your AWS credentials
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=us-east-2
-AWS_BUCKET_NAME=cloud-team3
+AWS_REGION=
+AWS_BUCKET_NAME=
 ```
 
 3. Install dependencies:
@@ -104,30 +104,9 @@ Logs are stored in:
 
 The application is containerized using Docker and deployed on AWS ECS:
 
-1. Build the Docker image:
-```bash
-docker build -t bank-marketing-app .
-```
+1. Build the Docker image
 
-2. Push to ECR:
-```bash
-aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 528192012979.dkr.ecr.us-east-2.amazonaws.com
-docker tag bank-marketing-app:latest 528192012979.dkr.ecr.us-east-2.amazonaws.com/bank-marketing-app:latest
-docker push 528192012979.dkr.ecr.us-east-2.amazonaws.com/bank-marketing-app:latest
-```
+2. Push to ECR
 
-## Future Improvements
 
-- Add AWS CloudWatch integration for monitoring
-- Implement model A/B testing
-- Add automated retraining pipeline
-- Enhance API documentation
-- Add unit tests
 
-## Contributors
-
-- Lance Zheng
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
