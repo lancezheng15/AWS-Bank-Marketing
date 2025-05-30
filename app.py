@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 
 # ---- Configuration ----
-BUCKET = "zmd7353-cloud"  # Replace with your bucket name
+BUCKET = "cloud-team3"  # Replace with your bucket name
 MODEL_PATHS = {
     "xgboost": "models/xgboost.pkl",
     "random_forest": "models/random_forest.pkl",
