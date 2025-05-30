@@ -21,11 +21,11 @@ logging.basicConfig(
 )
 
 # ---- Configuration ----
-BUCKET = "cloud-team3"  # Your actual bucket name
+BUCKET = "zmd7353-cloud"  # Replace with your bucket name
 MODEL_PATHS = {
-    "logistic_regression": "models/logistic_regression.pkl",
+    "xgboost": "models/xgboost.pkl",
     "random_forest": "models/random_forest.pkl",
-    "xgboost": "models/xgboost.pkl"
+    "logistic_regression": "models/logistic_regression.pkl"
 }
 
 # Set page configuration
@@ -76,58 +76,43 @@ st.markdown("""
     }
     
     /* Button and select box alignment */
-    div[data-testid="column"] > div[data-testid="stVerticalBlock"] {
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-    }
-    
-    /* Container for model selection and button */
     .model-selection-container {
         display: flex;
-        align-items: center;
+        flex-direction: column;
         gap: 1rem;
         margin-bottom: 2rem;
+        max-width: 300px;
     }
-    
-    .model-selection-container > div {
-        margin: 0 !important;
-    }
-    
+
     .model-selection-container .stSelectbox {
-        flex: 1;
+        width: 100%;
     }
-    
+
     .model-selection-container .stButton {
-        width: 150px;
+        width: 100%;
     }
-    
-    /* Style for both select box and button */
-    .stSelectbox > div > div,
-    .stButton > button {
+
+    .stSelectbox > div > div {
         height: 48px !important;
         border-radius: 6px !important;
         display: flex;
         align-items: center;
         border: none;
-    }
-    
-    /* Specific styles for select box */
-    .stSelectbox > div > div {
         background-color: rgb(242, 244, 247) !important;
         padding: 0 12px;
     }
     
-    /* Specific styles for button */
     .stButton > button {
         background-color: #1652f0 !important;
         color: white;
         font-weight: 600;
         width: 100%;
+        height: 48px !important;
+        border-radius: 6px !important;
         justify-content: center;
         padding: 0;
         margin: 0;
+        border: none;
     }
     
     .stButton > button:hover {
@@ -306,11 +291,10 @@ if page == "Prediction":
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Model Selection and Prediction
-    cols = st.columns([10, 2])
-    with cols[0]:
-        model_name = st.selectbox("Select Model for Prediction", list(MODEL_PATHS.keys()))
-    with cols[1]:
-        predict_button = st.button("Predict", use_container_width=True)
+    st.markdown('<div class="model-selection-container">', unsafe_allow_html=True)
+    model_name = st.selectbox("Select Model for Prediction", list(MODEL_PATHS.keys()))
+    predict_button = st.button("Predict", use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if predict_button:
         # Prepare input data
