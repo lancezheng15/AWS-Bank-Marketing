@@ -6,6 +6,27 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_curve, auc
+import boto3
+import joblib
+import logging
+import traceback
+from io import BytesIO
+from datetime import datetime
+
+# ---- Logging ----
+logging.basicConfig(
+    filename="app_log.log",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+
+# ---- Configuration ----
+BUCKET = "cloud-team3"  # Your actual bucket name
+MODEL_PATHS = {
+    "logistic_regression": "models/logistic_regression.pkl",
+    "random_forest": "models/random_forest.pkl",
+    "xgboost": "models/xgboost.pkl"
+}
 
 # Set page configuration
 st.set_page_config(
@@ -145,16 +166,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Load the models and data
-def load_models():
-    models = {}
-    model_dir = 'models'
-    for model_file in os.listdir(model_dir):
-        if model_file.endswith('.pkl'):
-            model_name = model_file.replace('.pkl', '')
-            with open(os.path.join(model_dir, model_file), 'rb') as f:
-                models[model_name] = pickle.load(f)
-    return models
+# ---- Cache + Load model ----
+@st.cache_resource(show_spinner=True)
+def load_model_from_s3(model_name):
+    try:
+        s3 = boto3.client("s3")
+        model_key = MODEL_PATHS[model_name]
+        response = s3.get_object(Bucket=BUCKET, Key=model_key)
+        model_bytes = response["Body"].read()
+        model = joblib.load(BytesIO(model_bytes))
+        logging.info(f"Successfully loaded model: {model_key}")
+        return model
+    except Exception as e:
+        logging.error(f"Failed to load model {model_name}: {e}\n{traceback.format_exc()}")
+        st.error(f"Failed to load model: {e}")
+        return None
 
 # Load training and test data
 @st.cache_data
@@ -171,7 +197,6 @@ def load_data():
         return None, None, None, None
 
 try:
-    models = load_models()
     X_train, y_train, X_test, y_test = load_data()
     
     # Debug information
@@ -179,12 +204,9 @@ try:
         st.sidebar.info(f"Training data - X: {X_train.shape}, y: {y_train.shape}")
     if X_test is not None:
         st.sidebar.info(f"Test data - X: {X_test.shape}, y: {y_test.shape}")
-    if models:
-        st.sidebar.success(f"Loaded models: {', '.join(models.keys())}")
     
 except Exception as e:
-    st.sidebar.error(f"Error loading models or data: {e}")
-    models = {}
+    st.sidebar.error(f"Error loading data: {e}")
     X_train = None
     y_train = None
     X_test = None
@@ -284,10 +306,11 @@ if page == "Prediction":
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Model Selection and Prediction
-    st.markdown('<div class="model-selection-container">', unsafe_allow_html=True)
-    model_name = st.selectbox("Select Model for Prediction", list(models.keys()))
-    predict_button = st.button("Predict", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    cols = st.columns([10, 2])
+    with cols[0]:
+        model_name = st.selectbox("Select Model for Prediction", list(MODEL_PATHS.keys()))
+    with cols[1]:
+        predict_button = st.button("Predict", use_container_width=True)
 
     if predict_button:
         # Prepare input data
@@ -339,11 +362,17 @@ if page == "Prediction":
         # Reorder columns to match training data exactly
         input_df = input_df[expected_columns]
 
-        # Make prediction
-        prediction = models[model_name].predict(input_df)[0]
-        probability = models[model_name].predict_proba(input_df)[0][1]
+        # Load and make prediction with the selected model
+        model = load_model_from_s3(model_name)
+        if model is None:
+            st.error("Failed to load model. Please check the logs for details.")
+            st.stop()
 
-        # Display prediction with new styling
+        # Make prediction
+        prediction = model.predict(input_df)[0]
+        probability = model.predict_proba(input_df)[0][1]
+
+        # Display prediction with styling
         st.markdown("""
         <div class="prediction-card">
             <h2 style="margin-bottom: 20px;">Prediction Results</h2>
@@ -370,10 +399,10 @@ elif page == "Model Performance":
             train_metrics = {}
             test_metrics = {}
             
-            for model_name, model in models.items():
+            for model_name, model in MODEL_PATHS.items():
                 # Training metrics
-                y_train_pred = model.predict(X_train)
-                y_train_prob = model.predict_proba(X_train)[:, 1]
+                y_train_pred = load_model_from_s3(model_name).predict(X_train)
+                y_train_prob = load_model_from_s3(model_name).predict_proba(X_train)[:, 1]
                 
                 train_metrics[f"{model_name} (Train)"] = {
                     'Accuracy': accuracy_score(y_train, y_train_pred),
@@ -383,8 +412,8 @@ elif page == "Model Performance":
                 }
                 
                 # Test metrics
-                y_test_pred = model.predict(X_test)
-                y_test_prob = model.predict_proba(X_test)[:, 1]
+                y_test_pred = load_model_from_s3(model_name).predict(X_test)
+                y_test_prob = load_model_from_s3(model_name).predict_proba(X_test)[:, 1]
                 
                 test_metrics[f"{model_name} (Test)"] = {
                     'Accuracy': accuracy_score(y_test, y_test_pred),
@@ -408,9 +437,9 @@ elif page == "Model Performance":
             st.write("### ROC Curves")
             fig_roc = go.Figure()
             
-            for model_name, model in models.items():
+            for model_name, model in MODEL_PATHS.items():
                 # Training ROC
-                y_train_prob = model.predict_proba(X_train)[:, 1]
+                y_train_prob = load_model_from_s3(model_name).predict_proba(X_train)[:, 1]
                 fpr_train, tpr_train, _ = roc_curve(y_train, y_train_prob)
                 auc_train = auc(fpr_train, tpr_train)
                 
@@ -421,7 +450,7 @@ elif page == "Model Performance":
                 ))
                 
                 # Test ROC
-                y_test_prob = model.predict_proba(X_test)[:, 1]
+                y_test_prob = load_model_from_s3(model_name).predict_proba(X_test)[:, 1]
                 fpr_test, tpr_test, _ = roc_curve(y_test, y_test_prob)
                 auc_test = auc(fpr_test, tpr_test)
                 
@@ -460,7 +489,7 @@ elif page == "Model Performance":
             st.write("Debug information:")
             st.write(f"Training data - X: {X_train.shape}, y: {y_train.shape}")
             st.write(f"Test data - X: {X_test.shape}, y: {y_test.shape}")
-            st.write(f"Available models: {list(models.keys())}")
+            st.write(f"Available models: {list(MODEL_PATHS.keys())}")
     else:
         st.error("Could not load data. Please check if all required files exist in the 'data' directory.")
 
