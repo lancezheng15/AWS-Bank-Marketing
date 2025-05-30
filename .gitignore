@@ -1,0 +1,58 @@
+# Environment variables and sensitive files
+.env
+*.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs
+logs/
+*.log
+app_log.log
+
+# VS Code
+.vscode/
+
+# AWS
+.aws/
+
+# Docker
+.docker/
+
+# Mac OS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Local development
+temp/
+tmp/
+
+# Keep model files
+!models/*.pkl
+!models/*.joblib
+!models/*.h5
+
+# Jupyter Notebook
+.ipynb_checkpoints 

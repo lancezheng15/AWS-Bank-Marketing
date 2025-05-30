@@ -3,4 +3,5 @@ numpy
 scikit-learn
 xgboost
 boto3
-joblib 
+joblib
+python-dotenv==1.0.0 
