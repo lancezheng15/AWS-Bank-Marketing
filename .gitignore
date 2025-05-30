@@ -30,8 +30,6 @@ wheels/
 logs/
 *.log
 app_log.log
-app.log
-pipeline.log
 
 # VS Code
 .vscode/

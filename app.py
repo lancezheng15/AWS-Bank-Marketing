@@ -167,6 +167,46 @@ def load_model_from_s3(model_name):
         st.error(f"Failed to load model: {e}")
         return None
 
+def preprocess_input_data(input_data):
+    """Helper function to preprocess input data consistently"""
+    # Convert to DataFrame
+    input_df = pd.DataFrame([input_data])
+    
+    # Convert binary categorical variables
+    binary_features = ['default', 'housing', 'loan']
+    for feature in binary_features:
+        input_df[feature] = input_df[feature].map({'yes': 1, 'no': 0, 'unknown': -1})
+    
+    # One-hot encode categorical variables
+    categorical_features = ['job', 'marital', 'education', 'contact', 
+                          'month', 'day_of_week', 'poutcome']
+    input_df = pd.get_dummies(input_df, columns=categorical_features, drop_first=False)
+    
+    # Ensure all expected columns are present
+    expected_columns = ['age', 'default', 'housing', 'loan', 'duration', 'campaign', 'pdays',
+        'previous', 'emp.var.rate', 'cons.price.idx', 'cons.conf.idx', 'euribor3m',
+        'nr.employed', 'job_admin.', 'job_blue-collar', 'job_entrepreneur', 'job_housemaid',
+        'job_management', 'job_retired', 'job_self-employed', 'job_services', 'job_student',
+        'job_technician', 'job_unemployed', 'job_unknown', 'marital_divorced', 'marital_married',
+        'marital_single', 'marital_unknown', 'education_basic.4y', 'education_basic.6y',
+        'education_basic.9y', 'education_high.school', 'education_illiterate',
+        'education_professional.course', 'education_university.degree', 'education_unknown',
+        'contact_cellular', 'contact_telephone', 'month_apr', 'month_aug', 'month_dec',
+        'month_jul', 'month_jun', 'month_mar', 'month_may', 'month_nov', 'month_oct',
+        'month_sep', 'day_of_week_fri', 'day_of_week_mon', 'day_of_week_thu',
+        'day_of_week_tue', 'day_of_week_wed', 'poutcome_failure', 'poutcome_nonexistent',
+        'poutcome_success']
+    
+    # Add missing columns with 0s
+    for col in expected_columns:
+        if col not in input_df.columns:
+            input_df[col] = 0
+            
+    # Ensure columns are in the correct order
+    input_df = input_df[expected_columns]
+    
+    return input_df
+
 # Load training and test data
 @st.cache_data
 def load_data():
@@ -175,6 +215,33 @@ def load_data():
         y_train = pd.read_csv('data/y_train_res.csv')
         X_test = pd.read_csv('data/X_test.csv')
         y_test = pd.read_csv('data/y_test.csv')
+        
+        # Ensure columns match expected format
+        expected_columns = ['age', 'default', 'housing', 'loan', 'duration', 'campaign', 'pdays',
+            'previous', 'emp.var.rate', 'cons.price.idx', 'cons.conf.idx', 'euribor3m',
+            'nr.employed', 'job_admin.', 'job_blue-collar', 'job_entrepreneur', 'job_housemaid',
+            'job_management', 'job_retired', 'job_self-employed', 'job_services', 'job_student',
+            'job_technician', 'job_unemployed', 'job_unknown', 'marital_divorced', 'marital_married',
+            'marital_single', 'marital_unknown', 'education_basic.4y', 'education_basic.6y',
+            'education_basic.9y', 'education_high.school', 'education_illiterate',
+            'education_professional.course', 'education_university.degree', 'education_unknown',
+            'contact_cellular', 'contact_telephone', 'month_apr', 'month_aug', 'month_dec',
+            'month_jul', 'month_jun', 'month_mar', 'month_may', 'month_nov', 'month_oct',
+            'month_sep', 'day_of_week_fri', 'day_of_week_mon', 'day_of_week_thu',
+            'day_of_week_tue', 'day_of_week_wed', 'poutcome_failure', 'poutcome_nonexistent',
+            'poutcome_success']
+        
+        # Add missing columns with 0s for both train and test
+        for col in expected_columns:
+            if col not in X_train.columns:
+                X_train[col] = 0
+            if col not in X_test.columns:
+                X_test[col] = 0
+        
+        # Ensure columns are in the correct order
+        X_train = X_train[expected_columns]
+        X_test = X_test[expected_columns]
+        
         return (X_train, y_train['y'].values,
                 X_test, y_test['y'].values)
     except Exception as e:
@@ -184,14 +251,12 @@ def load_data():
 try:
     X_train, y_train, X_test, y_test = load_data()
     
-    # Debug information
-    if X_train is not None:
-        st.sidebar.info(f"Training data - X: {X_train.shape}, y: {y_train.shape}")
-    if X_test is not None:
-        st.sidebar.info(f"Test data - X: {X_test.shape}, y: {y_test.shape}")
+    # Remove debug information display
+    if X_train is None or X_test is None:
+        st.error("Could not load data. Please check if all required files exist in the 'data' directory.")
     
 except Exception as e:
-    st.sidebar.error(f"Error loading data: {e}")
+    st.error(f"Error loading data: {e}")
     X_train = None
     y_train = None
     X_test = None
@@ -232,45 +297,46 @@ if page == "Prediction":
     with col2:
         job = st.selectbox("Occupation", [
             "admin.", "blue-collar", "entrepreneur", "housemaid", "management",
-            "retired", "self-employed", "services", "student", "technician", "unemployed"
+            "retired", "self-employed", "services", "student", "technician", 
+            "unemployed", "unknown"
         ])
     with col3:
         education = st.selectbox("Education Level", [
             "basic.4y", "basic.6y", "basic.9y", "high.school", "illiterate",
-            "professional.course", "university.degree"
+            "professional.course", "university.degree", "unknown"
         ])
     
     col4, col5 = st.columns(2)
     with col4:
-        marital = st.selectbox("Marital Status", ["married", "single", "divorced"])
+        marital = st.selectbox("Marital Status", ["divorced", "married", "single", "unknown"])
     with col5:
-        default = st.selectbox("Has Credit Default?", ["no", "yes"])
+        default = st.selectbox("Has Credit Default?", ["yes", "no", "unknown"])
     
     # Financial Status Section
     st.markdown('<br>', unsafe_allow_html=True)
     st.markdown('<div class="section-header">💰 Financial Status</div>', unsafe_allow_html=True)
     col6, col7 = st.columns(2)
     with col6:
-        housing = st.selectbox("Has Housing Loan?", ["no", "yes"])
+        housing = st.selectbox("Has Housing Loan?", ["yes", "no", "unknown"])
     with col7:
-        loan = st.selectbox("Has Personal Loan?", ["no", "yes"])
+        loan = st.selectbox("Has Personal Loan?", ["yes", "no", "unknown"])
     
     # Campaign Information Section
     st.markdown('<br>', unsafe_allow_html=True)
     st.markdown('<div class="section-header">📞 Campaign Information</div>', unsafe_allow_html=True)
     col8, col9, col10 = st.columns(3)
     with col8:
-        contact = st.selectbox("Contact Method", ["telephone", "cellular"])
+        contact = st.selectbox("Contact Method", ["cellular", "telephone"])
         campaign = st.number_input("Number of Contacts", min_value=1, value=1)
     with col9:
         month = st.selectbox("Contact Month", [
-            "jan", "feb", "mar", "apr", "may", "jun",
-            "jul", "aug", "sep", "oct", "nov", "dec"
+            "apr", "aug", "dec", "jul", "jun", "mar", 
+            "may", "nov", "oct", "sep"
         ])
         previous = st.number_input("Previous Contacts", min_value=0, value=0)
     with col10:
         day_of_week = st.selectbox("Contact Day", ["mon", "tue", "wed", "thu", "fri"])
-        poutcome = st.selectbox("Previous Outcome", ["nonexistent", "failure", "success"])
+        poutcome = st.selectbox("Previous Outcome", ["failure", "nonexistent", "success"])
     
     duration = st.slider("Last Contact Duration (seconds)", 0, 1000, 261)
     pdays = st.slider("Days Since Last Contact", 0, 999, 999)
@@ -308,43 +374,8 @@ if page == "Prediction":
             "euribor3m": euribor3m, "nr.employed": nr_employed
         }
 
-        # Convert to DataFrame
-        input_df = pd.DataFrame([input_data])
-        
-        # Preprocess the data
-        input_df['default'] = input_df['default'].map({'yes': 1, 'no': 0})
-        input_df['housing'] = input_df['housing'].map({'yes': 1, 'no': 0})
-        input_df['loan'] = input_df['loan'].map({'yes': 1, 'no': 0})
-        
-        # One-hot encode categorical variables
-        categorical_columns = ['job', 'marital', 'education', 'contact', 
-                             'month', 'day_of_week', 'poutcome']
-        input_df = pd.get_dummies(input_df, columns=categorical_columns, drop_first=False)
-        
-        # Define expected feature columns in exact order from training
-        expected_columns = [
-            'age', 'housing', 'loan', 'duration', 'campaign', 'pdays',
-            'previous', 'emp.var.rate', 'cons.price.idx', 'cons.conf.idx', 'euribor3m',
-            'nr.employed', 'job_blue-collar', 'job_entrepreneur', 'job_housemaid',
-            'job_management', 'job_retired', 'job_self-employed', 'job_services',
-            'job_student', 'job_technician', 'job_unemployed', 'job_unknown',
-            'marital_married', 'marital_single', 'marital_unknown',
-            'education_basic.6y', 'education_basic.9y', 'education_high.school',
-            'education_illiterate', 'education_professional.course',
-            'education_university.degree', 'education_unknown', 'contact_telephone',
-            'month_aug', 'month_dec', 'month_jul', 'month_jun', 'month_mar',
-            'month_may', 'month_nov', 'month_oct', 'month_sep', 'day_of_week_mon',
-            'day_of_week_thu', 'day_of_week_tue', 'day_of_week_wed',
-            'poutcome_nonexistent', 'poutcome_success'
-        ]
-        
-        # Ensure all expected features are present
-        for col in expected_columns:
-            if col not in input_df.columns:
-                input_df[col] = 0
-        
-        # Reorder columns to match training data exactly
-        input_df = input_df[expected_columns]
+        # Preprocess input data
+        input_df = preprocess_input_data(input_data)
 
         # Load and make prediction with the selected model
         model = load_model_from_s3(model_name)
@@ -352,7 +383,7 @@ if page == "Prediction":
             st.error("Failed to load model. Please check the logs for details.")
             st.stop()
 
-        # Make prediction
+        # Make prediction (no caching needed here since input_df is always fresh)
         prediction = model.predict(input_df)[0]
         probability = model.predict_proba(input_df)[0][1]
 
@@ -383,10 +414,15 @@ elif page == "Model Performance":
             train_metrics = {}
             test_metrics = {}
             
-            for model_name, model in MODEL_PATHS.items():
+            for model_name in MODEL_PATHS.keys():
+                # Load model once for both train and test predictions
+                model = load_model_from_s3(model_name)
+                if model is None:
+                    continue
+                
                 # Training metrics
-                y_train_pred = load_model_from_s3(model_name).predict(X_train)
-                y_train_prob = load_model_from_s3(model_name).predict_proba(X_train)[:, 1]
+                y_train_pred = model.predict(X_train)
+                y_train_prob = model.predict_proba(X_train)[:, 1]
                 
                 train_metrics[f"{model_name} (Train)"] = {
                     'Accuracy': accuracy_score(y_train, y_train_pred),
@@ -396,8 +432,8 @@ elif page == "Model Performance":
                 }
                 
                 # Test metrics
-                y_test_pred = load_model_from_s3(model_name).predict(X_test)
-                y_test_prob = load_model_from_s3(model_name).predict_proba(X_test)[:, 1]
+                y_test_pred = model.predict(X_test)
+                y_test_prob = model.predict_proba(X_test)[:, 1]
                 
                 test_metrics[f"{model_name} (Test)"] = {
                     'Accuracy': accuracy_score(y_test, y_test_pred),
